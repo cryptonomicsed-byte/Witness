@@ -1,0 +1,27 @@
+[manifest]
+repo       = "Witness"
+role       = "physical-world-attestation"
+version    = "0.1.0"
+security   = "high"
+port       = 7794
+
+[protocol]
+kind       = "attestation-broker"
+hardware   = ["companion", "agent-tag", "gateway", "robot-controller", "drone-autopilot"]
+
+[attestation]
+nostr_kind  = 31020
+twin_anchor = 31030
+signing     = "ed25519"
+
+[events]
+emits    = ["observation.submitted", "attestation.signed", "attestation.published"]
+consumes = ["vcp.session.active", "sim.completed"]
+
+[receipts]
+kind = "witness"
+arp  = true
+
+[dependencies]
+required  = ["vcp"]
+optional  = ["scarabswarm", "vantage", "dip"]
