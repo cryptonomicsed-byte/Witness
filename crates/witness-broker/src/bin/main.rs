@@ -59,6 +59,7 @@ async fn submit_observation(
 ) -> (StatusCode, Json<serde_json::Value>) {
     let mut b = bundle;
     b.hash = b.compute_hash();
+    b.stamp_gix1();
     let id = b.bundle_id.clone();
     let hash = b.hash.clone();
     s.bundles.write().unwrap().insert(id.clone(), b);
