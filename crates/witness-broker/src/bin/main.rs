@@ -99,7 +99,7 @@ async fn create_attestation(
         .unwrap_or_else(|| format!("bundle_unknown:{}", req.bundle_id));
 
     let attest_id = Uuid::new_v4().to_string();
-    let attestation = WitnessAttestation {
+    let mut attestation = WitnessAttestation {
         attest_id:        attest_id.clone(),
         kind:             AttestationKind::PolicyExecution,
         vcp_session_id:   req.vcp_session_id,
@@ -117,7 +117,9 @@ async fn create_attestation(
         arp_receipt_id:   None,
         timestamp:        Utc::now(),
         signature:        String::new(),
+        gix1_canonical_id: None,
     };
+    attestation.stamp_gix1();
 
     let hash = attestation.canonical_hash();
     let tags = attestation.to_nostr_tags();

@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use gix_types::{Gix1, GixKind, GixNamespace, RoutingHints};
 use serde::{Deserialize, Serialize};
 
 /// A physical-world attestation signed by a Witness node.
@@ -31,9 +32,29 @@ pub struct WitnessAttestation {
     pub timestamp:        DateTime<Utc>,
     /// Ed25519 hex signature from the Witness node's key
     pub signature:        String,
+
+    /// GIX1 canonical_id (hex) — `Gix1(Receipt, MeshDevice, attest_id)`.
+    /// Stamped after construction via `stamp_gix1()`.
+    #[serde(default)]
+    pub gix1_canonical_id: Option<String>,
 }
 
 impl WitnessAttestation {
+    /// Stamp a GIX1 Receipt envelope onto this attestation (idempotent).
+    pub fn stamp_gix1(&mut self) {
+        if self.gix1_canonical_id.is_some() { return; }
+        let ts = self.timestamp.timestamp_millis() as u64;
+        let env = Gix1::new(
+            GixKind::Receipt,
+            GixNamespace::MeshDevice,
+            self.attest_id.as_bytes(),
+            None,
+            ts,
+            RoutingHints::default(),
+        );
+        self.gix1_canonical_id = Some(hex::encode(env.canonical_id));
+    }
+
     pub fn canonical_hash(&self) -> String {
         let data = format!(
             "{}:{}:{}:{}:{}",
@@ -88,4 +109,60 @@ pub enum AttestationStatus {
     Signed,
     Published,
     Anchored,
+}
+
+#[cfg(test)]
+mod gix_tests {
+    use super::*;
+    use chrono::Utc;
+
+    fn make_attestation() -> WitnessAttestation {
+        WitnessAttestation {
+            attest_id:        "attest-001".into(),
+            kind:             AttestationKind::PolicyExecution,
+            vcp_session_id:   "session-abc".into(),
+            device_id:        "device-xyz".into(),
+            agent_id:         "agent-123".into(),
+            sim_receipt_id:   None,
+            observation_hash: "d".repeat(64),
+            outcome:          "success".into(),
+            status:           AttestationStatus::Pending,
+            latitude:         None,
+            longitude:        None,
+            altitude_m:       None,
+            nostr_event_id:   None,
+            zangbeto_anchor:  None,
+            arp_receipt_id:   None,
+            timestamp:        Utc::now(),
+            signature:        String::new(),
+            gix1_canonical_id: None,
+        }
+    }
+
+    #[test]
+    fn stamp_gix1_sets_canonical_id() {
+        let mut a = make_attestation();
+        a.stamp_gix1();
+        let id = a.gix1_canonical_id.as_ref().expect("gix1_canonical_id must be set");
+        assert_eq!(id.len(), 64);
+    }
+
+    #[test]
+    fn stamp_gix1_is_idempotent() {
+        let mut a = make_attestation();
+        a.stamp_gix1();
+        let first = a.gix1_canonical_id.clone();
+        a.stamp_gix1();
+        assert_eq!(a.gix1_canonical_id, first);
+    }
+
+    #[test]
+    fn two_attestations_have_distinct_gix1_ids() {
+        let mut a1 = make_attestation();
+        let mut a2 = make_attestation();
+        a2.attest_id = "attest-002".into();
+        a1.stamp_gix1();
+        a2.stamp_gix1();
+        assert_ne!(a1.gix1_canonical_id, a2.gix1_canonical_id);
+    }
 }
